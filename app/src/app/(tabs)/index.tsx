@@ -1,4 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -12,20 +13,32 @@ import {
 } from 'react-native';
 import { DeadlineAlert } from '../../components/meu-dia/DeadlineAlert';
 import { EventCard } from '../../components/meu-dia/EventCard';
+import { ScheduleImportModal } from '../../components/meu-dia/ScheduleImportModal';
 import { TaskItem } from '../../components/meu-dia/TaskItem';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../hooks/useTheme';
-import type { Event } from '../../services/events.service';
+import type { Event, ImportedScheduleEvent, ScheduleImportPreview } from '../../services/events.service';
 import { eventsService } from '../../services/events.service';
 import type { Task } from '../../services/tasks.service';
 import { tasksService } from '../../services/tasks.service';
 import { useAuthStore } from '../../store/auth.store';
 
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const fromLocalDateKey = (date: string) => new Date(`${date}T12:00:00`);
+
 export default function MeuDiaScreen() {
   const { colors, fontSize } = useTheme();
   const user = useAuthStore((s: any) => s.user);
 
+  const today = toLocalDateKey(new Date());
+  const [selectedDate, setSelectedDate] = useState(today);
   const [events, setEvents] = useState<Event[]>([]);
   const [focusTasks, setFocusTasks] = useState<Task[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -37,13 +50,15 @@ export default function MeuDiaScreen() {
   const [newDueDate, setNewDueDate] = useState('');
   const [newIsFocus, setNewIsFocus] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const today = new Date().toISOString().split('T')[0];
+  const [importPreview, setImportPreview] = useState<ScheduleImportPreview | null>(null);
+  const [importingPdf, setImportingPdf] = useState(false);
+  const [confirmingImport, setConfirmingImport] = useState(false);
+  const [clearingSchedule, setClearingSchedule] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
       const [eventsRes, focusRes, tasksRes] = await Promise.all([
-        eventsService.list(today),
+        eventsService.list(selectedDate),
         tasksService.list(true),
         tasksService.list(),
       ]);
@@ -51,7 +66,7 @@ export default function MeuDiaScreen() {
       setFocusTasks(focusRes.data.data.filter((t: Task) => !t.is_done).slice(0, 3));
       setAllTasks(tasksRes.data.data);
     } catch {}
-  }, [today]);
+  }, [selectedDate]);
 
   useEffect(() => {
     loadData();
@@ -108,6 +123,79 @@ export default function MeuDiaScreen() {
     ]);
   };
 
+  const handleSelectSchedulePdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      setImportingPdf(true);
+      const response = await eventsService.previewPdfImport(
+        file.uri,
+        file.name || 'extrato-matricula.pdf',
+        file.mimeType || 'application/pdf',
+        file.file,
+      );
+      setImportPreview(response.data.data);
+    } catch (error: any) {
+      Alert.alert(
+        'Não foi possível ler o PDF',
+        error.response?.data?.message
+          || error.response?.data?.errors?.pdf?.[0]
+          || 'Confira se o arquivo é um Extrato de Matrícula da UEPG.',
+      );
+    } finally {
+      setImportingPdf(false);
+    }
+  };
+
+  const handleConfirmScheduleImport = async (selectedEvents: ImportedScheduleEvent[]) => {
+    setConfirmingImport(true);
+    try {
+      const response = await eventsService.confirmPdfImport(
+        importPreview?.metadata.issued_at || today,
+        selectedEvents,
+      );
+      setImportPreview(null);
+      await loadData();
+      Alert.alert('Horários importados', response.data.message);
+    } catch (error: any) {
+      Alert.alert('Erro ao importar', error.response?.data?.message || 'Não foi possível salvar os horários.');
+    } finally {
+      setConfirmingImport(false);
+    }
+  };
+
+  const handleClearSchedule = () => {
+    Alert.alert(
+      'Limpar grade',
+      'Isso removerá todos os horários recorrentes da sua grade. Tarefas e eventos avulsos serão mantidos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpar grade',
+          style: 'destructive',
+          onPress: async () => {
+            setClearingSchedule(true);
+            try {
+              const response = await eventsService.clearSchedule();
+              await loadData();
+              Alert.alert('Grade limpa', response.data.message);
+            } catch (error: any) {
+              Alert.alert('Erro', error.response?.data?.message || 'Não foi possível limpar a grade.');
+            } finally {
+              setClearingSchedule(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const nextDeadline = allTasks
     .filter((t) => !t.is_done && t.due_date)
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())[0];
@@ -118,6 +206,20 @@ export default function MeuDiaScreen() {
     if (hour < 18) return 'Boa tarde';
     return 'Boa noite';
   };
+
+  const moveSelectedDate = (days: number) => {
+    const date = fromLocalDateKey(selectedDate);
+    date.setDate(date.getDate() + days);
+    setSelectedDate(toLocalDateKey(date));
+  };
+
+  const selectedDateLabel = new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  }).format(fromLocalDateKey(selectedDate));
+
+  const isToday = selectedDate === today;
 
   const priorities: Array<{ value: 'low' | 'medium' | 'high'; label: string; color: string }> = [
     { value: 'high', label: 'Alta', color: colors.error },
@@ -140,12 +242,67 @@ export default function MeuDiaScreen() {
 
         {nextDeadline && <DeadlineAlert task={nextDeadline} />}
 
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg }]}>
-          Agenda de Hoje
-        </Text>
+        <View style={[styles.dateNavigator, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Pressable
+            onPress={() => moveSelectedDate(-1)}
+            accessibilityLabel="Ver dia anterior"
+            style={styles.dateArrow}
+          >
+            <FontAwesome name="chevron-left" size={16} color={colors.primary} />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSelectedDate(today)}
+            disabled={isToday}
+            accessibilityLabel={isToday ? 'Agenda de hoje' : 'Voltar para hoje'}
+            style={styles.dateLabelContainer}
+          >
+            <Text style={[styles.dateLabel, { color: colors.text, fontSize: fontSize.base }]}>
+              {selectedDateLabel}
+            </Text>
+            <Text style={[styles.dateHint, { color: isToday ? colors.primary : colors.textSecondary, fontSize: fontSize.xs }]}>
+              {isToday ? 'Hoje' : 'Toque para voltar para hoje'}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => moveSelectedDate(1)}
+            accessibilityLabel="Ver próximo dia"
+            style={styles.dateArrow}
+          >
+            <FontAwesome name="chevron-right" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg, marginTop: 0 }]}>
+            {isToday ? 'Agenda de Hoje' : 'Agenda do Dia'}
+          </Text>
+          <View style={styles.scheduleActions}>
+            <Pressable
+              onPress={handleClearSchedule}
+              disabled={clearingSchedule}
+              accessibilityLabel="Limpar grade de horários"
+              style={[styles.clearButton, { borderColor: colors.error, opacity: clearingSchedule ? 0.6 : 1 }]}
+            >
+              <FontAwesome name={clearingSchedule ? 'spinner' : 'trash-o'} size={15} color={colors.error} />
+            </Pressable>
+            <Pressable
+              onPress={handleSelectSchedulePdf}
+              disabled={importingPdf}
+              accessibilityLabel="Importar horários de um PDF"
+              style={[styles.importButton, { borderColor: colors.primary, opacity: importingPdf ? 0.6 : 1 }]}
+            >
+              <FontAwesome name={importingPdf ? 'spinner' : 'file-pdf-o'} size={14} color={colors.primary} />
+              <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' }}>
+                {importingPdf ? 'Lendo...' : 'Importar PDF'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
         {events.length === 0 ? (
           <Text style={[styles.empty, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
-            Nenhum evento para hoje.
+            Nenhum evento para este dia.
           </Text>
         ) : (
           events.map((event) => <EventCard key={event.id} event={event} />)
@@ -281,6 +438,14 @@ export default function MeuDiaScreen() {
           </View>
         </View>
       </Modal>
+
+      <ScheduleImportModal
+        visible={!!importPreview}
+        preview={importPreview}
+        loading={confirmingImport}
+        onClose={() => setImportPreview(null)}
+        onConfirm={handleConfirmScheduleImport}
+      />
     </View>
   );
 }
@@ -296,6 +461,35 @@ const styles = StyleSheet.create({
   greeting: {
     fontWeight: '700',
     marginBottom: 20,
+  },
+  dateNavigator: {
+    minHeight: 72,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dateArrow: {
+    width: 52,
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateLabelContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  dateLabel: {
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    textAlign: 'center',
+  },
+  dateHint: {
+    marginTop: 3,
+    fontWeight: '600',
   },
   sectionTitle: {
     fontWeight: '700',
@@ -313,6 +507,29 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  importButton: {
+    minHeight: 34,
+    paddingHorizontal: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
+  scheduleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clearButton: {
+    width: 36,
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -46,6 +46,9 @@ Route::prefix('v1')->group(function () {
 
         // Eventos
         Route::get('events/export', [EventController::class, 'export']);
+        Route::post('events/import-pdf/preview', [EventController::class, 'previewPdfImport']);
+        Route::post('events/import-pdf/confirm', [EventController::class, 'confirmPdfImport']);
+        Route::delete('events/schedule', [EventController::class, 'clearSchedule']);
         Route::get('events', [EventController::class, 'index']);
         Route::post('events', [EventController::class, 'store']);
         Route::get('events/{event}', [EventController::class, 'show']);

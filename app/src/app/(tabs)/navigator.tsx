@@ -7,8 +7,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import { Colors } from '../../constants/colors';
+import { CampusMap } from '../../components/mapa/CampusMap';
 import { PointCard } from '../../components/mapa/PointCard';
 import { useTheme } from '../../hooks/useTheme';
 import type { MapPoint } from '../../services/map.service';
@@ -26,13 +26,6 @@ const typeLabels: Record<string, string> = {
   rest_point: 'Descanso',
   building: 'Prédios',
   service: 'Serviços',
-};
-
-const UEPG_REGION = {
-  latitude: -25.0947,
-  longitude: -50.1618,
-  latitudeDelta: 0.006,
-  longitudeDelta: 0.006,
 };
 
 export default function NavigatorScreen() {
@@ -97,22 +90,7 @@ export default function NavigatorScreen() {
         ))}
       </View>
 
-      <MapView
-        style={styles.map}
-        initialRegion={UEPG_REGION}
-        showsUserLocation
-        showsMyLocationButton
-      >
-        {points.map((point) => (
-          <Marker
-            key={point.id}
-            coordinate={{ latitude: point.latitude, longitude: point.longitude }}
-            title={point.name}
-            pinColor={typeColors[point.type]}
-            onPress={() => setSelectedPoint(point)}
-          />
-        ))}
-      </MapView>
+      <CampusMap points={points} onSelect={setSelectedPoint} />
 
       {selectedPoint && (
         <PointCard point={selectedPoint} onClose={() => setSelectedPoint(null)} />
@@ -161,8 +139,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
-  },
-  map: {
-    flex: 1,
   },
 });

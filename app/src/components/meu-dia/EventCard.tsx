@@ -9,19 +9,18 @@ interface EventCardProps {
   event: Event;
 }
 
+const formatScheduleTime = (value: string) => {
+  // Class schedules are wall-clock times. Converting an ISO value with Date
+  // would turn 08:15 UTC into 05:15 in America/Sao_Paulo.
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : value.slice(0, 5);
+};
+
 export function EventCard({ event }: EventCardProps) {
   const { colors, fontSize } = useTheme();
 
-  const startTime = new Date(event.starts_at).toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  const endTime = event.ends_at
-    ? new Date(event.ends_at).toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : null;
+  const startTime = formatScheduleTime(event.starts_at);
+  const endTime = event.ends_at ? formatScheduleTime(event.ends_at) : null;
 
   return (
     <Card style={{ borderLeftWidth: 4, borderLeftColor: event.color || colors.primary }}>

@@ -1,9 +1,10 @@
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -89,16 +90,16 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.links}>
-          <Link href="/(auth)/forgot-password" asChild>
+          <Pressable onPress={() => router.push('/(auth)/forgot-password')} accessibilityRole="link">
             <Text style={[styles.link, { color: colors.primary, fontSize: fontSize.sm }]}>
               Esqueci minha senha
             </Text>
-          </Link>
-          <Link href="/(auth)/register" asChild>
+          </Pressable>
+          <Pressable onPress={() => router.push('/(auth)/register')} accessibilityRole="link">
             <Text style={[styles.link, { color: colors.primary, fontSize: fontSize.sm }]}>
               Criar conta
             </Text>
-          </Link>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

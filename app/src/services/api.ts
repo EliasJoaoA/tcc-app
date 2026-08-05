@@ -1,5 +1,5 @@
 import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { tokenStorage } from './token-storage';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.100:8000';
 
@@ -12,7 +12,14 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync('auth_token');
+  if (config.data instanceof FormData) {
+    // The browser/React Native transport must generate the multipart boundary.
+    // Keeping the instance default (`application/json`) turns uploaded files
+    // into regular fields and Laravel rejects them with "must be a file".
+    config.headers.delete('Content-Type');
+  }
+
+  const token = await tokenStorage.get();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,7 +30,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      await SecureStore.deleteItemAsync('auth_token');
+      await tokenStorage.remove();
     }
     return Promise.reject(error);
   },

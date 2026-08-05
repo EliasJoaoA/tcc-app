@@ -11,6 +11,28 @@ export interface Event {
   recurrence_rule: string | null;
 }
 
+export interface ImportedScheduleEvent {
+  title: string;
+  code: string;
+  location: string;
+  day_of_week: number;
+  day_label: string;
+  start_time: string;
+  end_time: string;
+  selected?: boolean;
+}
+
+export interface ScheduleImportPreview {
+  metadata: {
+    student_name: string;
+    course: string;
+    registration: string | null;
+    issued_at: string;
+    semester: string | null;
+  };
+  events: ImportedScheduleEvent[];
+}
+
 export const eventsService = {
   list: (date?: string) =>
     api.get<{ data: Event[] }>('/events', { params: date ? { date } : undefined }),
@@ -29,4 +51,31 @@ export const eventsService = {
 
   export: () =>
     api.get('/events/export', { responseType: 'blob' }),
+
+  previewPdfImport: (
+    uri: string,
+    name = 'horario.pdf',
+    mimeType = 'application/pdf',
+    webFile?: File,
+  ) => {
+    const formData = new FormData();
+    if (webFile) {
+      formData.append('pdf', webFile, name);
+    } else {
+      formData.append('pdf', { uri, name, type: mimeType } as any);
+    }
+
+    // Let Axios create the multipart boundary. Setting it manually makes the
+    // browser send an empty file to Laravel.
+    return api.post<{ data: ScheduleImportPreview }>('/events/import-pdf/preview', formData);
+  },
+
+  confirmPdfImport: (startDate: string, events: ImportedScheduleEvent[]) =>
+    api.post<{ data: Event[]; message: string }>('/events/import-pdf/confirm', {
+      start_date: startDate,
+      events,
+    }),
+
+  clearSchedule: () =>
+    api.delete<{ data: { deleted: number }; message: string }>('/events/schedule'),
 };

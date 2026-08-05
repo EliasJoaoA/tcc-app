@@ -1,8 +1,8 @@
-import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import type { User } from '../services/auth.service';
 import { authService } from '../services/auth.service';
 import { userService } from '../services/user.service';
+import { tokenStorage } from '../services/token-storage';
 
 interface AuthState {
   user: User | null;
@@ -27,31 +27,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     const res = await authService.login({ email, password });
     const { token, user } = res.data.data;
-    await SecureStore.setItemAsync('auth_token', token);
+    await tokenStorage.set(token);
     set({ token, user, isAuthenticated: true });
   },
 
   register: async (data) => {
     const res = await authService.register(data);
     const { token, user } = res.data.data;
-    await SecureStore.setItemAsync('auth_token', token);
+    await tokenStorage.set(token);
     set({ token, user, isAuthenticated: true });
   },
 
   logout: async () => {
     try { await authService.logout(); } catch {}
-    await SecureStore.deleteItemAsync('auth_token');
+    await tokenStorage.remove();
     set({ token: null, user: null, isAuthenticated: false });
   },
 
   loadToken: async () => {
-    const token = await SecureStore.getItemAsync('auth_token');
+    const token = await tokenStorage.get();
     if (token) {
       try {
         const res = await userService.getProfile();
         set({ token, user: res.data.data, isAuthenticated: true, isLoading: false });
       } catch {
-        await SecureStore.deleteItemAsync('auth_token');
+        await tokenStorage.remove();
         set({ token: null, user: null, isAuthenticated: false, isLoading: false });
       }
     } else {
