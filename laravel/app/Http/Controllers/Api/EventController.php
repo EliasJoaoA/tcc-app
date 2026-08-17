@@ -60,12 +60,27 @@ class EventController extends Controller
 
     public function previewPdfImport(Request $request, UepgSchedulePdfParser $parser): JsonResponse
     {
+        Log::info('Início da prévia de importação de PDF', [
+            'user_id' => $request->user()?->id,
+            'has_pdf' => $request->hasFile('pdf'),
+            'content_type' => $request->header('Content-Type'),
+        ]);
+
         $request->validate([
             'pdf' => ['required', 'file', 'mimes:pdf', 'max:10240'],
         ]);
 
+        $file = $request->file('pdf');
+
+        Log::info('PDF recebido para importação', [
+            'user_id' => $request->user()?->id,
+            'file_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'size_bytes' => $file->getSize(),
+        ]);
+
         try {
-            $result = $parser->parse($request->file('pdf')->getRealPath());
+            $result = $parser->parse($file->getRealPath());
             Log::info('PDF processado com sucesso', [
                 'user_id'      => $request->user()?->id,
                 'events_found' => count($result['events']),

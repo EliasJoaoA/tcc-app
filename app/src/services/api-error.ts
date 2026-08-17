@@ -7,9 +7,13 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
 
   if (!error.response) {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const details = [error.code, error.message]
+      .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
+      .join(' - ');
+
     return apiUrl
-      ? `Não foi possível conectar à API (${apiUrl}). Verifique sua internet e tente novamente.`
-      : 'Não foi possível conectar ao servidor. Verifique sua internet e tente novamente.';
+      ? `Não foi possível conectar à API (${apiUrl}). ${details ? `Detalhe: ${details}. ` : ''}Verifique sua internet e tente novamente.`
+      : `Não foi possível conectar ao servidor. ${details ? `Detalhe: ${details}. ` : ''}Verifique sua internet e tente novamente.`;
   }
 
   const data = error.response.data as { message?: string; errors?: ValidationErrors } | undefined;

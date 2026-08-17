@@ -143,6 +143,7 @@ export default function MeuDiaScreen() {
       );
       setImportPreview(response.data.data);
     } catch (error: unknown) {
+      console.error('Falha na prévia de importação de PDF', error);
       Alert.alert(
         'Não foi possível ler o PDF',
         getApiErrorMessage(error, 'Confira se o arquivo é um Extrato de Matrícula da UEPG.'),
