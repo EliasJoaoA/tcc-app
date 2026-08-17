@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -10,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -20,7 +20,7 @@ class EventController extends Controller
         $query = $request->user()->events();
 
         if ($request->filled('date')) {
-            $date = CarbonImmutable::parse($request->date)->startOfDay();
+            $date   = CarbonImmutable::parse($request->date)->startOfDay();
             $events = $query->orderBy('starts_at')->get()->filter(function (Event $event) use ($date) {
                 if (! $event->is_recurring) {
                     return $event->starts_at?->isSameDay($date);
@@ -39,11 +39,11 @@ class EventController extends Controller
                     return $event;
                 }
 
-                $copy = $event->replicate();
-                $copy->id = $event->id;
+                $copy            = $event->replicate();
+                $copy->id        = $event->id;
                 $copy->starts_at = $date->setTimeFrom($event->starts_at);
-                $copy->ends_at = $event->ends_at ? $date->setTimeFrom($event->ends_at) : null;
-                $copy->exists = true;
+                $copy->ends_at   = $event->ends_at ? $date->setTimeFrom($event->ends_at) : null;
+                $copy->exists    = true;
 
                 return $copy;
             })->values();
@@ -52,9 +52,9 @@ class EventController extends Controller
         }
 
         return response()->json([
-            'data' => EventResource::collection($events),
+            'data'    => EventResource::collection($events),
             'message' => 'OK',
-            'status' => 200,
+            'status'  => 200,
         ]);
     }
 
@@ -66,40 +66,51 @@ class EventController extends Controller
 
         try {
             $result = $parser->parse($request->file('pdf')->getRealPath());
+            Log::info('PDF processado com sucesso', [
+                'user_id'      => $request->user()?->id,
+                'events_found' => count($result['events']),
+                'semester'     => $result['metadata']['semester'] ?? null,
+            ]);
         } catch (\Throwable $exception) {
+            Log::error('Falha ao processar PDF de horário', [
+                'user_id'   => $request->user()?->id,
+                'file_name' => $file->getClientOriginalName(),
+                'message'   => $exception->getMessage(),
+                'exception' => get_class($exception),
+            ]);
             report($exception);
 
             return response()->json([
-                'data' => null,
+                'data'    => null,
                 'message' => $exception->getMessage(),
-                'status' => 422,
+                'status'  => 422,
             ], 422);
         }
 
         return response()->json([
-            'data' => $result,
-            'message' => count($result['events']).' aulas encontradas. Revise antes de importar.',
-            'status' => 200,
+            'data'    => $result,
+            'message' => count($result['events']) . ' aulas encontradas. Revise antes de importar.',
+            'status'  => 200,
         ]);
     }
 
     public function confirmPdfImport(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'start_date' => ['required', 'date'],
-            'events' => ['required', 'array', 'min:1', 'max:50'],
-            'events.*.title' => ['required', 'string', 'max:255'],
-            'events.*.location' => ['nullable', 'string', 'max:255'],
+            'start_date'           => ['required', 'date'],
+            'events'               => ['required', 'array', 'min:1', 'max:50'],
+            'events.*.title'       => ['required', 'string', 'max:255'],
+            'events.*.location'    => ['nullable', 'string', 'max:255'],
             'events.*.day_of_week' => ['required', 'integer', 'between:1,7'],
-            'events.*.start_time' => ['required', 'date_format:H:i'],
-            'events.*.end_time' => ['required', 'date_format:H:i'],
-            'events.*.selected' => ['sometimes', 'boolean'],
+            'events.*.start_time'  => ['required', 'date_format:H:i'],
+            'events.*.end_time'    => ['required', 'date_format:H:i'],
+            'events.*.selected'    => ['sometimes', 'boolean'],
         ]);
 
         $baseDate = CarbonImmutable::parse($data['start_date'])->startOfDay();
         $dayCodes = [1 => 'MO', 2 => 'TU', 3 => 'WE', 4 => 'TH', 5 => 'FR', 6 => 'SA', 7 => 'SU'];
-        $created = [];
-        $skipped = 0;
+        $created  = [];
+        $skipped  = 0;
 
         DB::transaction(function () use ($request, $data, $baseDate, $dayCodes, &$created, &$skipped) {
             foreach ($data['events'] as $item) {
@@ -108,16 +119,16 @@ class EventController extends Controller
                 }
 
                 $daysAhead = ($item['day_of_week'] - $baseDate->dayOfWeekIso + 7) % 7;
-                $date = $baseDate->addDays($daysAhead);
-                $startsAt = CarbonImmutable::parse($date->format('Y-m-d').' '.$item['start_time']);
-                $endsAt = CarbonImmutable::parse($date->format('Y-m-d').' '.$item['end_time']);
-                $rule = 'FREQ=WEEKLY;BYDAY='.$dayCodes[$item['day_of_week']];
+                $date      = $baseDate->addDays($daysAhead);
+                $startsAt  = CarbonImmutable::parse($date->format('Y-m-d') . ' ' . $item['start_time']);
+                $endsAt    = CarbonImmutable::parse($date->format('Y-m-d') . ' ' . $item['end_time']);
+                $rule      = 'FREQ=WEEKLY;BYDAY=' . $dayCodes[$item['day_of_week']];
 
                 $duplicate = $request->user()->events()
                     ->where('title', $item['title'])
                     ->where('recurrence_rule', $rule)
                     ->get()
-                    ->contains(fn (Event $event) => $event->starts_at?->format('H:i') === $item['start_time']);
+                    ->contains(fn(Event $event) => $event->starts_at?->format('H:i') === $item['start_time']);
 
                 if ($duplicate) {
                     $skipped++;
@@ -125,20 +136,20 @@ class EventController extends Controller
                 }
 
                 $created[] = $request->user()->events()->create([
-                    'title' => $item['title'],
-                    'location' => $item['location'] ?? null,
-                    'starts_at' => $startsAt,
-                    'ends_at' => $endsAt,
-                    'color' => '#2E7D9A',
-                    'is_recurring' => true,
+                    'title'           => $item['title'],
+                    'location'        => $item['location'] ?? null,
+                    'starts_at'       => $startsAt,
+                    'ends_at'         => $endsAt,
+                    'color'           => '#2E7D9A',
+                    'is_recurring'    => true,
                     'recurrence_rule' => $rule,
                 ]);
             }
         });
 
         return response()->json([
-            'data' => EventResource::collection(collect($created)),
-            'message' => count($created).' aulas importadas'.($skipped ? "; {$skipped} duplicadas ignoradas" : '').'.',
+            'data'    => EventResource::collection(collect($created)),
+            'message' => count($created) . ' aulas importadas' . ($skipped ? "; {$skipped} duplicadas ignoradas" : '') . '.',
             'status' => 201,
         ], 201);
     }
@@ -150,7 +161,7 @@ class EventController extends Controller
             ->delete();
 
         return response()->json([
-            'data' => ['deleted' => $deleted],
+            'data'    => ['deleted' => $deleted],
             'message' => $deleted === 1
                 ? '1 horário removido da grade.'
                 : "{$deleted} horários removidos da grade.",
@@ -161,21 +172,21 @@ class EventController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'title' => 'required|string|max:255',
-            'location' => 'nullable|string|max:255',
-            'starts_at' => 'required|date',
-            'ends_at' => 'nullable|date|after_or_equal:starts_at',
-            'color' => 'nullable|string|max:20',
-            'is_recurring' => 'boolean',
+            'title'           => 'required|string|max:255',
+            'location'        => 'nullable|string|max:255',
+            'starts_at'       => 'required|date',
+            'ends_at'         => 'nullable|date|after_or_equal:starts_at',
+            'color'           => 'nullable|string|max:20',
+            'is_recurring'    => 'boolean',
             'recurrence_rule' => 'nullable|string|max:255',
         ]);
 
         $event = $request->user()->events()->create($data);
 
         return response()->json([
-            'data' => new EventResource($event),
+            'data'    => new EventResource($event),
             'message' => 'Evento criado.',
-            'status' => 201,
+            'status'  => 201,
         ], 201);
     }
 
@@ -184,9 +195,9 @@ class EventController extends Controller
         $this->authorize('view', $event);
 
         return response()->json([
-            'data' => new EventResource($event),
+            'data'    => new EventResource($event),
             'message' => 'OK',
-            'status' => 200,
+            'status'  => 200,
         ]);
     }
 
@@ -195,21 +206,21 @@ class EventController extends Controller
         $this->authorize('update', $event);
 
         $data = $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'location' => 'nullable|string|max:255',
-            'starts_at' => 'sometimes|date',
-            'ends_at' => 'nullable|date',
-            'color' => 'nullable|string|max:20',
-            'is_recurring' => 'boolean',
+            'title'           => 'sometimes|string|max:255',
+            'location'        => 'nullable|string|max:255',
+            'starts_at'       => 'sometimes|date',
+            'ends_at'         => 'nullable|date',
+            'color'           => 'nullable|string|max:20',
+            'is_recurring'    => 'boolean',
             'recurrence_rule' => 'nullable|string|max:255',
         ]);
 
         $event->update($data);
 
         return response()->json([
-            'data' => new EventResource($event),
+            'data'    => new EventResource($event),
             'message' => 'Evento atualizado.',
-            'status' => 200,
+            'status'  => 200,
         ]);
     }
 
@@ -219,17 +230,17 @@ class EventController extends Controller
         $event->delete();
 
         return response()->json([
-            'data' => null,
+            'data'    => null,
             'message' => 'Evento excluído.',
-            'status' => 200,
+            'status'  => 200,
         ]);
     }
 
     public function export(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        $now = now();
+        $now         = now();
         $startOfWeek = $now->startOfWeek()->copy();
-        $endOfWeek = $now->endOfWeek()->copy();
+        $endOfWeek   = $now->endOfWeek()->copy();
 
         $events = $request->user()->events()
             ->whereBetween('starts_at', [$startOfWeek, $endOfWeek])
@@ -237,7 +248,7 @@ class EventController extends Controller
             ->get();
 
         $spreadsheet = new Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+        $sheet       = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Agenda da Semana');
         $sheet->fromArray(['Evento', 'Local', 'Início', 'Fim', 'Recorrente'], null, 'A1');
 

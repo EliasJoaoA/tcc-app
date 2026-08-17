@@ -1,15 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { Colors } from '../../constants/colors';
+import { WebView } from 'react-native-webview';
 import type { MapPoint } from '../../services/map.service';
-
-const typeColors: Record<string, string> = {
-  quiet_zone: Colors.quietZone,
-  rest_point: Colors.restPoint,
-  building: Colors.building,
-  service: Colors.service,
-};
+import { createLeafletMapHtml } from './leaflet-map';
 
 interface Props {
   points: MapPoint[];
@@ -17,28 +10,20 @@ interface Props {
 }
 
 export function CampusMap({ points, onSelect }: Props) {
+  const html = useMemo(() => createLeafletMapHtml(points, 'native'), [points]);
   return (
-    <MapView
+    <WebView
       style={styles.map}
-      initialRegion={{
-        latitude: -25.0947,
-        longitude: -50.1618,
-        latitudeDelta: 0.006,
-        longitudeDelta: 0.006,
+      source={{ html }}
+      originWhitelist={['*']}
+      javaScriptEnabled
+      domStorageEnabled
+      onMessage={(event) => {
+        const point = points.find((item) => item.id === Number(event.nativeEvent.data));
+        if (point) onSelect(point);
       }}
-      showsUserLocation
-      showsMyLocationButton
-    >
-      {points.map((point) => (
-        <Marker
-          key={point.id}
-          coordinate={{ latitude: point.latitude, longitude: point.longitude }}
-          title={point.name}
-          pinColor={typeColors[point.type]}
-          onPress={() => onSelect(point)}
-        />
-      ))}
-    </MapView>
+      accessibilityLabel="Mapa interativo do campus da UEPG"
+    />
   );
 }
 

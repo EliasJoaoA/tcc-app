@@ -17,7 +17,7 @@ const priorityColors: Record<string, string> = {
 
 export function Badge({ label, color }: BadgeProps) {
   const { fontSize } = useTheme();
-  const bgColor = priorityColors[label.toLowerCase()] ?? color ?? Colors.primary;
+  const bgColor = color ?? priorityColors[label.toLowerCase()] ?? Colors.primary;
 
   return (
     <View style={[styles.badge, { backgroundColor: bgColor + '20' }]}>

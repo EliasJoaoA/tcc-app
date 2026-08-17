@@ -2,6 +2,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { Colors } from '../../constants/colors';
 import type { Task } from '../../services/tasks.service';
 import { Badge } from '../ui/Badge';
 
@@ -46,7 +47,10 @@ export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
           >
             {task.title}
           </Text>
-          <Badge label={task.priority} />
+          <Badge
+            label={{ low: 'Baixa', medium: 'Média', high: 'Alta' }[task.priority]}
+            color={{ low: Colors.priorityLow, medium: Colors.priorityMedium, high: Colors.priorityHigh }[task.priority]}
+          />
         </View>
       </Pressable>
       {onDelete && (

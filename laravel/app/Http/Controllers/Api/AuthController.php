@@ -8,6 +8,7 @@ use App\Models\UserPreference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -19,17 +20,29 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'course' => 'nullable|string|max:255',
+        ], [
+            'name.required' => 'Informe seu nome completo.',
+            'email.required' => 'Informe seu e-mail.',
+            'email.email' => 'Informe um e-mail válido.',
+            'email.unique' => 'Já existe uma conta com este e-mail.',
+            'password.required' => 'Informe uma senha.',
+            'password.min' => 'A senha deve ter pelo menos 8 caracteres.',
+            'password.confirmed' => 'A confirmação da senha não corresponde.',
         ]);
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
-            'course' => $data['course'] ?? null,
-            'role' => 'student',
-        ]);
+        $user = DB::transaction(function () use ($data) {
+            $user = User::create([
+                'name' => trim($data['name']),
+                'email' => strtolower(trim($data['email'])),
+                'password' => Hash::make($data['password']),
+                'course' => isset($data['course']) ? trim($data['course']) : null,
+                'role' => 'student',
+            ]);
 
-        UserPreference::create(['user_id' => $user->id]);
+            UserPreference::create(['user_id' => $user->id]);
+
+            return $user;
+        });
 
         $token = $user->createToken('app')->plainTextToken;
 

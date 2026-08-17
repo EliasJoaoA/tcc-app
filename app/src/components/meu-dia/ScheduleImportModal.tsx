@@ -1,5 +1,5 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import type { ImportedScheduleEvent, ScheduleImportPreview } from '../../services/events.service';
@@ -16,6 +16,10 @@ interface Props {
 export function ScheduleImportModal({ preview, visible, loading, onClose, onConfirm }: Props) {
   const { colors, fontSize } = useTheme();
   const [selection, setSelection] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    setSelection({});
+  }, [preview]);
 
   const selectedEvents = useMemo(
     () => (preview?.events ?? []).map((event, index) => ({

@@ -13,6 +13,7 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../hooks/useTheme';
+import { getApiErrorMessage } from '../../services/api-error';
 import { useAuthStore } from '../../store/auth.store';
 
 export default function RegisterScreen() {
@@ -27,7 +28,7 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios.');
       return;
     }
@@ -35,19 +36,22 @@ export default function RegisterScreen() {
       Alert.alert('Atenção', 'As senhas não coincidem.');
       return;
     }
+    if (password.length < 8) {
+      Alert.alert('Atenção', 'A senha deve ter pelo menos 8 caracteres.');
+      return;
+    }
     setLoading(true);
     try {
       await register({
         name: name.trim(),
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         password_confirmation: confirmPassword,
         course: course.trim() || undefined,
       });
       router.replace('/(tabs)');
-    } catch (e: any) {
-      const msg = e.response?.data?.message || 'Erro ao criar conta.';
-      Alert.alert('Erro', msg);
+    } catch (error: unknown) {
+      Alert.alert('Não foi possível criar a conta', getApiErrorMessage(error, 'Erro ao criar conta.'));
     } finally {
       setLoading(false);
     }

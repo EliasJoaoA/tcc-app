@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import { PointCard } from '../../components/mapa/PointCard';
 import { useTheme } from '../../hooks/useTheme';
 import type { MapPoint } from '../../services/map.service';
 import { mapService } from '../../services/map.service';
+import { getApiErrorMessage } from '../../services/api-error';
 
 const typeColors: Record<string, string> = {
   quiet_zone: Colors.quietZone,
@@ -34,16 +36,24 @@ export default function NavigatorScreen() {
   const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadPoints();
   }, [activeFilter, search]);
 
   const loadPoints = async () => {
+    setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await mapService.list(activeFilter ?? undefined, search || undefined);
       setPoints(res.data.data);
-    } catch {}
+    } catch (error: unknown) {
+      setErrorMessage(getApiErrorMessage(error, 'Não foi possível carregar os pontos do campus.'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filters = ['quiet_zone', 'rest_point', 'building', 'service'] as const;
@@ -91,6 +101,23 @@ export default function NavigatorScreen() {
       </View>
 
       <CampusMap points={points} onSelect={setSelectedPoint} />
+
+      {loading && (
+        <View style={[styles.statusCard, { backgroundColor: colors.surface }]}>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ color: colors.text, fontSize: fontSize.sm }}>Carregando campus...</Text>
+        </View>
+      )}
+
+      {!loading && errorMessage && (
+        <View style={[styles.statusCard, { backgroundColor: colors.surface }]}>
+          <FontAwesome name="exclamation-circle" size={18} color={colors.error} />
+          <Text style={[styles.statusText, { color: colors.text, fontSize: fontSize.sm }]}>{errorMessage}</Text>
+          <Pressable onPress={loadPoints} accessibilityLabel="Tentar carregar o campus novamente">
+            <Text style={{ color: colors.primary, fontWeight: '700' }}>Tentar novamente</Text>
+          </Pressable>
+        </View>
+      )}
 
       {selectedPoint && (
         <PointCard point={selectedPoint} onClose={() => setSelectedPoint(null)} />
@@ -140,4 +167,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
+  statusCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    top: '45%',
+    zIndex: 20,
+    padding: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    gap: 10,
+    elevation: 5,
+  },
+  statusText: { textAlign: 'center' },
 });

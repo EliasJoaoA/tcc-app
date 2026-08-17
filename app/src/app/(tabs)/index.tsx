@@ -20,6 +20,7 @@ import { Input } from '../../components/ui/Input';
 import { useTheme } from '../../hooks/useTheme';
 import type { Event, ImportedScheduleEvent, ScheduleImportPreview } from '../../services/events.service';
 import { eventsService } from '../../services/events.service';
+import { getApiErrorMessage } from '../../services/api-error';
 import type { Task } from '../../services/tasks.service';
 import { tasksService } from '../../services/tasks.service';
 import { useAuthStore } from '../../store/auth.store';
@@ -141,12 +142,10 @@ export default function MeuDiaScreen() {
         file.file,
       );
       setImportPreview(response.data.data);
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         'Não foi possível ler o PDF',
-        error.response?.data?.message
-          || error.response?.data?.errors?.pdf?.[0]
-          || 'Confira se o arquivo é um Extrato de Matrícula da UEPG.',
+        getApiErrorMessage(error, 'Confira se o arquivo é um Extrato de Matrícula da UEPG.'),
       );
     } finally {
       setImportingPdf(false);
@@ -157,14 +156,14 @@ export default function MeuDiaScreen() {
     setConfirmingImport(true);
     try {
       const response = await eventsService.confirmPdfImport(
-        importPreview?.metadata.issued_at || today,
+        today,
         selectedEvents,
       );
       setImportPreview(null);
       await loadData();
       Alert.alert('Horários importados', response.data.message);
-    } catch (error: any) {
-      Alert.alert('Erro ao importar', error.response?.data?.message || 'Não foi possível salvar os horários.');
+    } catch (error: unknown) {
+      Alert.alert('Erro ao importar', getApiErrorMessage(error, 'Não foi possível salvar os horários.'));
     } finally {
       setConfirmingImport(false);
     }
