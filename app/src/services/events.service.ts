@@ -1,4 +1,7 @@
-import api from './api';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import api, { API_BASE_URL } from './api';
+import { tokenStorage } from './token-storage';
 
 export interface Event {
   id: number;
@@ -58,6 +61,43 @@ export const eventsService = {
     mimeType = 'application/pdf',
     webFile?: File,
   ) => {
+    if (Platform.OS !== 'web') {
+      return (async () => {
+        const token = await tokenStorage.get();
+        const result = await FileSystem.uploadAsync(
+          `${API_BASE_URL}/api/v1/events/import-pdf/preview`,
+          uri,
+          {
+            httpMethod: 'POST',
+            uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+            fieldName: 'pdf',
+            mimeType,
+            headers: {
+              Accept: 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          },
+        );
+
+        let payload: { data?: ScheduleImportPreview; message?: string; errors?: Record<string, string[]> };
+        try {
+          payload = JSON.parse(result.body);
+        } catch {
+          payload = { message: 'A API retornou uma resposta inválida.' };
+        }
+
+        if (result.status < 200 || result.status >= 300) {
+          const error = Object.assign(new Error(payload.message || `Erro HTTP ${result.status}`), {
+            isAxiosError: true,
+            response: { status: result.status, data: payload },
+          });
+          throw error;
+        }
+
+        return { data: payload as { data: ScheduleImportPreview } };
+      })();
+    }
+
     const formData = new FormData();
     if (webFile) {
       formData.append('pdf', webFile, name);
