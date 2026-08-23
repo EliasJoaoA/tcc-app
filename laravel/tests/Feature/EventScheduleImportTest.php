@@ -1,11 +1,34 @@
 <?php
 
 use App\Models\User;
+use App\Services\UepgSchedulePdfParser;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
+
+test('an invalid schedule PDF returns the parser message instead of a server error', function () {
+    $user = User::factory()->create();
+    Sanctum::actingAs($user);
+
+    $this->mock(UepgSchedulePdfParser::class)
+        ->shouldReceive('parse')
+        ->once()
+        ->andThrow(new \RuntimeException('O arquivo não parece ser um Extrato de Matrícula da UEPG.'));
+
+    $pdf = UploadedFile::fake()->createWithContent(
+        'extrato.pdf',
+        "%PDF-1.4\n% arquivo de teste\n",
+    );
+
+    $this->post('/api/v1/events/import-pdf/preview', ['pdf' => $pdf], [
+        'Accept' => 'application/json',
+    ])
+        ->assertUnprocessable()
+        ->assertJsonPath('message', 'O arquivo não parece ser um Extrato de Matrícula da UEPG.');
+});
 
 test('it imports selected schedule items as weekly events and ignores duplicates', function () {
     $user = User::factory()->create();

@@ -16,7 +16,11 @@ api.interceptors.request.use(async (config) => {
     // The browser/React Native transport must generate the multipart boundary.
     // Keeping the instance default (`application/json`) turns uploaded files
     // into regular fields and Laravel rejects them with "must be a file".
-    config.headers.delete('Content-Type');
+    // Axios applies a default POST content type after request interceptors on
+    // React Native Android. `false` prevents that later default from
+    // overwriting the header, allowing React Native to add multipart/form-data
+    // with the correct boundary.
+    config.headers.set('Content-Type', false);
   }
 
   const token = await tokenStorage.get();
