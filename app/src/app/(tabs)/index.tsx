@@ -3,7 +3,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,6 +26,7 @@ import { getApiErrorMessage } from '../../services/api-error';
 import type { Task } from '../../services/tasks.service';
 import { tasksService } from '../../services/tasks.service';
 import { useAuthStore } from '../../store/auth.store';
+import { isoFromBrDate, maskDate } from '../../utils/masks';
 
 const toLocalDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -89,13 +92,23 @@ export default function MeuDiaScreen() {
       Alert.alert('Atenção', 'Informe o título da tarefa.');
       return;
     }
+    let dueDateIso: string | undefined;
+    if (newDueDate.trim()) {
+      const iso = isoFromBrDate(newDueDate);
+      if (!iso) {
+        Alert.alert('Atenção', 'Informe o prazo no formato DD/MM/AAAA.');
+        return;
+      }
+      dueDateIso = iso;
+    }
+
     setSaving(true);
     try {
       await tasksService.create({
         title: newTitle.trim(),
         priority: newPriority,
         is_focus: newIsFocus,
-        due_date: newDueDate || undefined,
+        due_date: dueDateIso,
       });
       setShowAddTask(false);
       setNewTitle('');
@@ -108,20 +121,6 @@ export default function MeuDiaScreen() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleDeleteTask = async (id: number) => {
-    Alert.alert('Excluir tarefa', 'Deseja realmente excluir esta tarefa?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: async () => {
-          await tasksService.delete(id);
-          await loadData();
-        },
-      },
-    ]);
   };
 
   const handleSelectSchedulePdf = async () => {
@@ -327,12 +326,7 @@ export default function MeuDiaScreen() {
           </Text>
         ) : (
           focusTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggle={handleToggleTask}
-              onDelete={handleDeleteTask}
-            />
+            <TaskItem key={task.id} task={task} onToggle={handleToggleTask} />
           ))
         )}
 
@@ -344,19 +338,17 @@ export default function MeuDiaScreen() {
             {allTasks
               .filter((t) => !t.is_focus && !t.is_done)
               .map((task) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  onToggle={handleToggleTask}
-                  onDelete={handleDeleteTask}
-                />
+                <TaskItem key={task.id} task={task} onToggle={handleToggleTask} />
               ))}
           </>
         )}
       </ScrollView>
 
-      <Modal visible={showAddTask} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+      <Modal visible={showAddTask} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: fontSize.lg }]}>
@@ -377,10 +369,12 @@ export default function MeuDiaScreen() {
 
             <Input
               label="Prazo (opcional)"
-              placeholder="AAAA-MM-DD"
+              placeholder="DD/MM/AAAA"
               value={newDueDate}
-              onChangeText={setNewDueDate}
-              accessibilityLabel="Data de prazo"
+              onChangeText={(v: string) => setNewDueDate(maskDate(v))}
+              keyboardType="number-pad"
+              maxLength={10}
+              accessibilityLabel="Data de prazo, no formato dia, mês e ano"
             />
 
             <Text style={[styles.fieldLabel, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
@@ -436,7 +430,7 @@ export default function MeuDiaScreen() {
               accessibilityLabel="Criar tarefa"
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <ScheduleImportModal

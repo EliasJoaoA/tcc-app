@@ -1,4 +1,3 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
@@ -9,18 +8,22 @@ import { Badge } from '../ui/Badge';
 interface TaskItemProps {
   task: Task;
   onToggle: (id: number) => void;
-  onDelete?: (id: number) => void;
 }
 
-export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
+export function TaskItem({ task, onToggle }: TaskItemProps) {
   const { colors, fontSize } = useTheme();
 
   return (
     <View style={styles.container}>
       <Pressable
         onPress={() => onToggle(task.id)}
-        accessibilityLabel={`${task.is_done ? 'Concluída' : 'Pendente'}: ${task.title}`}
+        accessibilityLabel={
+          task.is_done
+            ? `Concluída: ${task.title}. Toque para reabrir.`
+            : `Pendente: ${task.title}. Toque para concluir.`
+        }
         accessibilityRole="checkbox"
+        accessibilityState={{ checked: task.is_done }}
         style={styles.main}
       >
         <View
@@ -53,15 +56,6 @@ export function TaskItem({ task, onToggle, onDelete }: TaskItemProps) {
           />
         </View>
       </Pressable>
-      {onDelete && (
-        <Pressable
-          onPress={() => onDelete(task.id)}
-          accessibilityLabel={`Excluir tarefa: ${task.title}`}
-          style={styles.deleteBtn}
-        >
-          <FontAwesome name="trash-o" size={18} color={colors.error} />
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -101,8 +95,5 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     marginRight: 8,
-  },
-  deleteBtn: {
-    padding: 10,
   },
 });

@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\MapController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfessorContactController;
 use App\Http\Controllers\Api\SosController;
+use App\Http\Controllers\Api\SupportContactController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\VideoController;
@@ -75,6 +76,12 @@ Route::prefix('v1')->group(function () {
         // SOS Bem-Estar
         Route::get('sos/resources', [SosController::class, 'resources']);
         Route::get('sos/nearest-calm-point', [SosController::class, 'nearestCalmPoint']);
+
+        // Contatos de apoio (SOS)
+        Route::get('support-contacts', [SupportContactController::class, 'index']);
+        Route::post('support-contacts', [SupportContactController::class, 'store']);
+        Route::put('support-contacts/{supportContact}', [SupportContactController::class, 'update']);
+        Route::delete('support-contacts/{supportContact}', [SupportContactController::class, 'destroy']);
 
         // Vídeos
         Route::get('videos', [VideoController::class, 'index']);

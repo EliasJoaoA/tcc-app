@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
-import React, { useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -16,25 +17,59 @@ import { VideosList } from '../../components/sos/VideosList';
 import { Colors } from '../../constants/colors';
 import { useTheme } from '../../hooks/useTheme';
 import { sosService } from '../../services/sos.service';
-import { useAuthStore } from '../../store/auth.store';
+import type { SupportContact } from '../../services/support-contacts.service';
+import { supportContactsService } from '../../services/support-contacts.service';
+import { onlyDigits } from '../../utils/masks';
 
 export default function SOSScreen() {
   const { colors, fontSize } = useTheme();
-  const user = useAuthStore((s: any) => s.user);
   const [showBreathing, setShowBreathing] = useState(false);
   const [showVideos, setShowVideos] = useState(false);
+  const [contacts, setContacts] = useState<SupportContact[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      supportContactsService
+        .list()
+        .then((res) => setContacts(res.data.data))
+        .catch(() => {});
+    }, []),
+  );
+
+  const primaryContact = contacts.find((c) => c.is_primary) || contacts[0] || null;
+
+  const callContact = (contact: SupportContact) => {
+    const digits = onlyDigits(contact.phone);
+    Linking.openURL(`tel:${digits}`);
+  };
 
   const handleCallSupport = () => {
-    const phone = user?.support_contact_phone;
-    if (!phone) {
+    if (!primaryContact) {
       Alert.alert(
-        'Contato SOS',
+        'Contato de apoio',
         'Cadastre um contato de apoio no seu perfil para usar esta função.',
       );
       return;
     }
-    const url = Platform.OS === 'ios' ? `tel:${phone}` : `tel:${phone}`;
-    Linking.openURL(url);
+
+    // Com mais de um contato, deixa escolher; caso contrário liga direto.
+    const others = contacts.filter((c) => c.id !== primaryContact.id);
+    if (others.length === 0) {
+      callContact(primaryContact);
+      return;
+    }
+
+    Alert.alert('Ligar para apoio', 'Para quem você quer ligar?', [
+      {
+        text: `${primaryContact.name} (principal)`,
+        onPress: () => callContact(primaryContact),
+      },
+      ...others.slice(0, 2).map((c) => ({
+        text: c.name,
+        onPress: () => callContact(c),
+      })),
+      { text: 'Cancelar', style: 'cancel' as const },
+    ]);
   };
 
   const handleFindCalmPlace = async () => {
@@ -86,8 +121,8 @@ export default function SOSScreen() {
             icon="phone"
             label="Ligar para Apoio"
             description={
-              user?.support_contact_name
-                ? `Ligar para ${user.support_contact_name}`
+              primaryContact
+                ? `Ligar para ${primaryContact.name}`
                 : 'Configure seu contato SOS no perfil'
             }
             color={Colors.error}

@@ -3,8 +3,10 @@ import * as Clipboard from 'expo-clipboard';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -301,8 +303,11 @@ export default function ComunicaScreen() {
       </Modal>
 
       {/* Add/Edit contact modal */}
-      <Modal visible={showContactForm} animationType="slide" transparent>
-        <View style={styles.contactModal}>
+      <Modal visible={showContactForm} animationType="slide" transparent statusBarTranslucent>
+        <KeyboardAvoidingView
+          style={styles.contactModal}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.contactModalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: fontSize.lg }]}>
@@ -321,7 +326,7 @@ export default function ComunicaScreen() {
 
             <Button title="Salvar" onPress={handleSaveContact} loading={savingContact} accessibilityLabel="Salvar contato" />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
