@@ -37,6 +37,10 @@ const toLocalDateKey = (date: Date) => {
 
 const fromLocalDateKey = (date: string) => new Date(`${date}T12:00:00`);
 
+// Mantém tarefas concluídas visíveis, jogando-as para o fim da lista.
+const sortByDone = (tasks: Task[]) =>
+  [...tasks].sort((a, b) => Number(a.is_done) - Number(b.is_done));
+
 export default function MeuDiaScreen() {
   const { colors, fontSize } = useTheme();
   const user = useAuthStore((s: any) => s.user);
@@ -67,7 +71,7 @@ export default function MeuDiaScreen() {
         tasksService.list(),
       ]);
       setEvents(eventsRes.data.data);
-      setFocusTasks(focusRes.data.data.filter((t: Task) => !t.is_done).slice(0, 3));
+      setFocusTasks(sortByDone(focusRes.data.data));
       setAllTasks(tasksRes.data.data);
     } catch {}
   }, [selectedDate]);
@@ -330,16 +334,14 @@ export default function MeuDiaScreen() {
           ))
         )}
 
-        {allTasks.filter((t) => !t.is_focus && !t.is_done).length > 0 && (
+        {allTasks.filter((t) => !t.is_focus).length > 0 && (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text, fontSize: fontSize.lg }]}>
               Outras Tarefas
             </Text>
-            {allTasks
-              .filter((t) => !t.is_focus && !t.is_done)
-              .map((task) => (
-                <TaskItem key={task.id} task={task} onToggle={handleToggleTask} />
-              ))}
+            {sortByDone(allTasks.filter((t) => !t.is_focus)).map((task) => (
+              <TaskItem key={task.id} task={task} onToggle={handleToggleTask} />
+            ))}
           </>
         )}
       </ScrollView>
