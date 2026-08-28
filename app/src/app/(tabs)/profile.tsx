@@ -1,10 +1,8 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -78,31 +76,9 @@ export default function ProfileScreen() {
     }
   };
 
-  const handlePickAvatar = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      const formData = new FormData();
-      formData.append('avatar', {
-        uri: asset.uri,
-        name: 'avatar.jpg',
-        type: 'image/jpeg',
-      } as any);
-
-      try {
-        await userService.updateAvatar(formData);
-        await refreshUser();
-      } catch {
-        Alert.alert('Erro', 'Não foi possível atualizar a foto.');
-      }
-    }
-  };
+  // TODO(foto de perfil): reativar o upload de avatar quando o S3 estiver
+  // configurado. A lógica ficou em userService.updateAvatar / handlePickAvatar
+  // (removido). Enquanto isso, o perfil mostra apenas um ícone estático.
 
   const openContactModal = (contact?: SupportContact) => {
     if (contact) {
@@ -178,22 +154,12 @@ export default function ProfileScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
-      <Pressable
-        onPress={handlePickAvatar}
-        style={styles.avatarContainer}
-        accessibilityLabel="Alterar foto de perfil"
-      >
-        {user?.avatar ? (
-          <Image source={{ uri: user.avatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primaryLight }]}>
-            <FontAwesome name="user" size={40} color={colors.primary} />
-          </View>
-        )}
-        <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
-          <FontAwesome name="camera" size={12} color="#FFF" />
+      {/* Foto de perfil oculta até configurarmos o S3 (upload desativado). */}
+      <View style={styles.avatarContainer}>
+        <View style={[styles.avatarPlaceholder, { backgroundColor: colors.primaryLight }]}>
+          <FontAwesome name="user" size={40} color={colors.primary} />
         </View>
-      </Pressable>
+      </View>
 
       <Text style={[styles.section, { color: colors.text, fontSize: fontSize.lg }]}>
         Dados Pessoais
