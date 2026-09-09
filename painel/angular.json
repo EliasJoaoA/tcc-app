@@ -58,6 +58,7 @@
           },
           "configurations": {
             "production": {
+              "baseHref": "/painel/",
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
